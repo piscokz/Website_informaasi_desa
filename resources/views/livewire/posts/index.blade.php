@@ -1,76 +1,125 @@
 <?php
 
-use App\Models\Item;
+use App\Models\Post;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component {
-    public $items = [];
+    use WithFileUploads;
 
-    public $name = '';
-    public $description = '';
+    public $judul = '';
+    public $isi = '';
+    public $tanggal = '';
+    public $thumbnail;
+
+    public $posts = [];
 
     public function mount()
     {
-        $this->loadItems();
+        $this->tanggal = now()->toDateString(); // default today
+        $this->loadArticles();
     }
 
-    public function loadItems()
+    public function loadArticles()
     {
-        $this->items = Item::latest()->get();
+        $this->posts = Post::latest()->get();
     }
 
     public function save()
     {
         $this->validate([
-            'name' => 'required|min:3',
-            'description' => 'nullable|string',
+            'judul' => 'required|min:3',
+            'isi' => 'nullable|string',
+            'tanggal' => 'required|date',
+            'thumbnail' => 'nullable|image|max:2048', // max 2MB
         ]);
 
-        Item::create([
-            'name' => $this->name,
-            'description' => $this->description,
+        $path = null;
+        if ($this->thumbnail) {
+            $path = $this->thumbnail->store('thumbnails', 'public');
+        }
+
+        Post::create([
+            'judul' => $this->judul,
+            'isi' => $this->isi,
+            'tanggal' => $this->tanggal,
+            'thumbnail' => $path,
         ]);
 
-        $this->reset('name', 'description');
-
-        $this->loadItems(); // refresh data
+        $this->reset('judul', 'isi', 'tanggal', 'thumbnail');
+        $this->loadArticles();
     }
 };
 ?>
 
 <div class="p-6 space-y-6">
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Daftar Items</h1>
+    <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Buat Artikel</h1>
 
-    <!-- Form Tambah Data -->
-    <form wire:submit.prevent="save" class="space-y-4 bg-white dark:bg-black p-4 rounded shadow">
+    <form wire:submit.prevent="save" class="space-y-4 bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div>
-            <label class="block font-semibold text-gray-800 dark:text-gray-100">Nama</label>
-            <input type="text" wire:model="name" class="w-full border border-gray-300 dark:border-gray-700 dark:bg-black dark:text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            @error('name') <p class="text-red-500 text-sm">{{ $message }}</p> @enderror
+            <label class="block font-semibold dark:text-white">Judul</label>
+            <input type="text" wire:model="judul"
+                class="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:text-white" />
+            @error('judul')
+                <p class="text-red-500 text-sm">{{ $message }}</p>
+            @enderror
         </div>
 
         <div>
-            <label class="block font-semibold text-gray-800 dark:text-gray-100">Deskripsi</label>
-            <textarea wire:model="description" class="w-full border border-gray-300 dark:border-gray-700 dark:bg-black dark:text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-            @error('description') <p class="text-red-500 text-sm">{{ $message }}</p> @enderror
+            <label class="block font-semibold dark:text-white">Isi</label>
+            <textarea wire:model="isi" type='text' class="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:text-white"></textarea>
+            @error('isi')
+                <p class="text-red-500 text-sm">{{ $message }}</p>
+            @enderror
         </div>
 
-        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-black dark:hover:bg-blue-600 transition border border-gray-700">
-            Simpan
+        <div>
+            <label class="block font-semibold dark:text-white">Tanggal</label>
+            <input type="date" wire:model="tanggal"
+                class="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:text-white" />
+            @error('tanggal')
+                <p class="text-red-500 text-sm">{{ $message }}</p>
+            @enderror
+        </div>
+
+        <div>
+            <label class="block font-semibold dark:text-white">Thumbnail</label>
+            <input type="file" wire:model="thumbnail" class="w-full dark:text-white" />
+            @error('thumbnail')
+                <p class="text-red-500 text-sm">{{ $message }}</p>
+            @enderror
+        </div>
+
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Simpan Artikel
         </button>
     </form>
 
-    <!-- Tampilkan Items -->
-    @if (count($items) > 0)
-        <ul class="space-y-2">
-            @foreach ($items as $item)
-                <li class="p-2 bg-white dark:bg-black text-gray-900 dark:text-white shadow rounded">
-                    <strong>{{ $item->name }}</strong><br>
-                    <span class="text-sm text-gray-600 dark:text-gray-400">{{ $item->description }}</span>
-                </li>
-            @endforeach
-        </ul>
-    @else
-        <p class="text-gray-500 dark:text-gray-400">Belum ada item.</p>
-    @endif
+    <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Daftar Artikel</h2>
+        @php
+            $countPosts = count($posts ?? []);
+
+        @endphp
+        @if ($countPosts > 0)
+            <ul class="space-y-4">
+                @foreach ($posts as $post)
+                    <li class="p-4 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded shadow">
+                        @if ($post->thumbnail)
+                            <img src="{{ Storage::url($post->thumbnail) }}" alt="Thumbnail" class="mt-2 w-40 rounded">
+                        @else
+                            <p>tidak ada thumbnail</p>
+                        @endif
+                        <h3 class="text-lg font-bold">{{ $post->judul }}</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">{{ $post->tanggal->format('d M Y') }}</p>
+                        <!-- Menggunakan nl2br untuk menampilkan isi artikel dengan baris baru -->
+                        <p class="mt-2 text-sm">{!! nl2br(e($post->isi)) !!}</p>
+                    </li>
+                @endforeach
+            </ul>
+        @else
+            <p class="text-gray-500 dark:text-gray-300">Belum ada artikel.</p>
+        @endif
+    </div>
 </div>
